@@ -1,0 +1,18 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# SQLite
+db/grievance.db
+db/*.db
+!db/.gitkeep
+
+# Env
+.env
+
+# Uploads
+uploads/images/*
+uploads/audio/*
+!uploads/images/.gitkeep
+!uploads/audio/.gitkeep
