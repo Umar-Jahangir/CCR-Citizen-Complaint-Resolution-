@@ -33,3 +33,9 @@ def create_grievance(db: Session, citizen_id: str, grievance):
     db.commit()
     db.refresh(db_grievance)
     return db_grievance
+
+def get_grievance_by_ticket_id(db: Session, ticket_id: str):
+    return db.query(models.Grievance).filter(
+        models.Grievance.id == ticket_id
+    ).first()
+

@@ -22,3 +22,22 @@ class GrievanceResponse(BaseModel):
     ticket_id: str
     status: str
     created_at: datetime
+
+class AIClassification(BaseModel):
+    confidence: float
+    urgencyScore: float
+    sentiment: str
+
+
+class GrievanceTrackResponse(BaseModel):
+    ticketId: str
+    title: str
+    description: str
+    status: str
+    category: str
+    location: str
+    department: str
+    priority: str
+    submittedAt: datetime
+    updatedAt: Optional[datetime] = None
+    aiClassification: Optional[AIClassification] = None
