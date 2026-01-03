@@ -36,3 +36,8 @@ export async function updateGrievanceStatus(ticketId: string, status: string) {
   );
   if (!res.ok) throw new Error("Failed to update status");
 }
+
+export async function fetchAdminAnalytics() {
+  const res = await fetch("http://127.0.0.1:8000/admin/analytics");
+  return res.json();
+}

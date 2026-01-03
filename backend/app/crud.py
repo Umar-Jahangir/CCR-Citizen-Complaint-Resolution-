@@ -1,5 +1,7 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import extract, case
 from sqlalchemy import func
+from datetime import datetime, timedelta
 from . import models
 from .utils.id_generator import generate_ticket_id
 from .models import Grievance
@@ -70,3 +72,71 @@ def update_grievance_status(db: Session, ticket_id: str, new_status: str):
     db.commit()
     db.refresh(grievance)
     return grievance
+
+def get_weekly_trend(db: Session):
+    last_7_days = datetime.utcnow() - timedelta(days=6)
+
+    rows = (
+        db.query(
+            extract("dow", models.Grievance.created_at).label("day"),
+            func.count().label("total"),
+            func.sum(
+                case(
+                    (func.lower(models.Grievance.status) == "resolved", 1),
+                    else_=0
+                )
+            ).label("resolved")
+        )
+        .filter(models.Grievance.created_at >= last_7_days)
+        .group_by("day")
+        .order_by("day")
+        .all()
+    )
+
+    days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+    return [
+        {
+            "day": days[int(r.day)],
+            "complaints": r.total,
+            "resolved": r.resolved or 0,
+        }
+        for r in rows
+    ]
+
+
+def get_category_distribution(db: Session):
+    rows = (
+        db.query(
+            models.Grievance.category,
+            func.count().label("count")
+        )
+        .group_by(models.Grievance.category)
+        .all()
+    )
+
+    return [{"category": r.category, "count": r.count} for r in rows]
+
+
+def get_department_performance(db: Session):
+    rows = (
+        db.query(
+            models.Grievance.department,
+            func.sum(case((func.lower(models.Grievance.status) == "pending", 1), else_=0)).label("pending"),
+            func.sum(case((func.lower(models.Grievance.status) == "in progress", 1), else_=0)).label("in_progress"),
+            func.sum(case((func.lower(models.Grievance.status) == "resolved", 1), else_=0)).label("resolved"),
+        )
+        .group_by(models.Grievance.department)
+        .all()
+    )
+
+    return [
+        {
+            "name": r.department,
+            "pending": r.pending or 0,
+            "inProgress": r.in_progress or 0,
+            "resolved": r.resolved or 0,
+        }
+        for r in rows
+    ]
+

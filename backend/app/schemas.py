@@ -49,6 +49,7 @@ class AdminStatsResponse(BaseModel):
     in_progress: int
     resolved: int
     high_priority: int
+    escalated: int
 
 
 class AdminGrievanceListItem(BaseModel):
@@ -60,9 +61,32 @@ class AdminGrievanceListItem(BaseModel):
     priority: str
     status: str
     submittedAt: datetime
+    escalationNeeded: bool
 
 
 class UpdateStatusRequest(BaseModel):
     status: str
     
-    
+class WeeklyTrendItem(BaseModel):
+    day: str
+    complaints: int
+    resolved: int
+
+
+class CategoryDistributionItem(BaseModel):
+    category: str
+    count: int
+
+
+class DepartmentPerformanceItem(BaseModel):
+    name: str
+    pending: int
+    inProgress: int
+    resolved: int
+
+
+class AdminAnalyticsResponse(BaseModel):
+    weeklyTrend: List[WeeklyTrendItem]
+    categoryDistribution: List[CategoryDistributionItem]
+    departmentStats: List[DepartmentPerformanceItem]
+

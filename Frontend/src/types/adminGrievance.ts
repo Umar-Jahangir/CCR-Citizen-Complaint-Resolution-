@@ -13,7 +13,8 @@ export interface AdminGrievance {
   location: string;
   department: string;
   priority: "low" | "medium" | "high";
-  submittedAt: string | Date; // 👈 FIX
+  submittedAt: string | Date; 
+  escalationNeeded: boolean;
   updatedAt?: string | Date;
   aiClassification?: {
     confidence: number;
