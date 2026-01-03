@@ -128,8 +128,7 @@ const SubmitGrievance = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!formData.title || !formData.description || !formData.category || !formData.location) {
+    if (!formData.title || !formData.description || !formData.location) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -322,7 +321,7 @@ const SubmitGrievance = () => {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category *</Label>
+                  <Label htmlFor="category">Category</Label>
                   <Select
                     value={formData.category}
                     onValueChange={(value) => setFormData(prev => ({ ...prev, category: value as Category }))}
