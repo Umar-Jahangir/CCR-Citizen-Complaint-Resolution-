@@ -4,6 +4,7 @@ from typing import List
 from ..database import SessionLocal
 from .. import schemas, crud
 from sqlalchemy import func
+from ..utils.escalation import is_escalation_needed
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -23,13 +24,16 @@ def admin_stats(db: Session = Depends(get_db)):
     in_progress = db.query(func.count()).filter(func.lower(crud.models.Grievance.status) == "in progress").scalar()
     resolved = db.query(func.count()).filter(func.lower(crud.models.Grievance.status) == "resolved").scalar()
     high_priority = db.query(func.count()).filter(func.lower(crud.models.Grievance.priority) == "high").scalar()
+    escalated = db.query(func.count()).filter(func.lower(crud.models.Grievance.status) != "resolved").scalar()
+
 
     return {
         "total": total,
         "pending": pending,
         "in_progress": in_progress,
         "resolved": resolved,
-        "high_priority": high_priority
+        "high_priority": high_priority,
+        "escalated": escalated
     }
 
 
@@ -52,6 +56,7 @@ def list_grievances(
             "priority": g.priority.lower(),
             "status": g.status.lower().replace(" ", "-"),
             "submittedAt": g.created_at,
+            "escalationNeeded": is_escalation_needed(g.status, g.created_at),
         }
         for g in grievances
     ]
@@ -96,3 +101,11 @@ def update_status(
         raise HTTPException(status_code=404, detail="Not found")
 
     return {"message": "Status updated"}
+
+@router.get("/analytics", response_model=schemas.AdminAnalyticsResponse)
+def admin_analytics(db: Session = Depends(get_db)):
+    return {
+        "weeklyTrend": crud.get_weekly_trend(db),
+        "categoryDistribution": crud.get_category_distribution(db),
+        "departmentStats": crud.get_department_performance(db),
+    }

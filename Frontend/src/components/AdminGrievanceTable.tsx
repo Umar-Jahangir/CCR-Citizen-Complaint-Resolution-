@@ -28,6 +28,7 @@ export default function AdminGrievanceTable({ grievances, onView }: Props) {
             <TableHead>Department</TableHead>
             <TableHead>Created</TableHead>
             <TableHead>Action</TableHead>
+            <TableHead>Alert</TableHead>
           </TableRow>
         </TableHeader>
 
@@ -57,6 +58,13 @@ export default function AdminGrievanceTable({ grievances, onView }: Props) {
                 <Button size="sm" variant="ghost" onClick={() => onView(g)}>
                   <Eye className="h-4 w-4" />
                 </Button>
+              </TableCell>
+              <TableCell>
+                {g.escalationNeeded && (
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    ⚠️ Escalation Needed
+                  </Badge>
+                )}
               </TableCell>
             </TableRow>
           ))}
