@@ -6,7 +6,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import StatCard from '@/components/StatCard';
 import GrievanceCard from '@/components/GrievanceCard';
-import { mockGrievances, departmentStats, categoryDistribution, weeklyTrend } from '@/data/mockGrievances';
+import {
+  weeklyTrend,
+  categoryDistribution,
+  departmentStats,
+} from "@/data/adminAnalyticsMock";
 import { 
   FileText, 
   Clock, 
@@ -21,22 +25,57 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 
+import { useEffect } from "react";
+import {
+  fetchAdminStats,
+  fetchAdminGrievances,
+} from "@/api/admin";
+
+import AdminGrievanceTable from "@/components/AdminGrievanceTable";
+import GrievanceDetailDrawer from "@/components/GrievanceDetailDrawer";
+import { AdminGrievance } from "@/types/adminGrievance";
+
 const Dashboard = () => {
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    in_progress: 0,
+    resolved: 0,
+    high_priority: 0,
+  });
+
+  const [grievances, setGrievances] = useState<AdminGrievance[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
 
-  const totalComplaints = mockGrievances.length;
-  const pendingComplaints = mockGrievances.filter(g => g.status === 'pending').length;
-  const inProgressComplaints = mockGrievances.filter(g => g.status === 'in-progress').length;
-  const resolvedComplaints = mockGrievances.filter(g => g.status === 'resolved').length;
+  const totalComplaints = stats.total;
+  const pendingComplaints = stats.pending;
+  const inProgressComplaints = stats.in_progress;
+  const resolvedComplaints = stats.resolved;
 
-  const filteredGrievances = mockGrievances.filter(g => {
-    if (statusFilter !== 'all' && g.status !== statusFilter) return false;
-    if (priorityFilter !== 'all' && g.priority !== priorityFilter) return false;
-    return true;
-  });
 
   const COLORS = ['#059669', '#3b82f6', '#06b6d4', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'];
+  const [selectedGrievance, setSelectedGrievance] = useState<AdminGrievance | null>(null);
+
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        setLoading(true);
+        const [statsData, grievanceData] = await Promise.all([
+          fetchAdminStats(),
+          fetchAdminGrievances(statusFilter, priorityFilter),
+        ]);
+        setStats(statsData);
+        setGrievances(grievanceData);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDashboard();
+  }, [statusFilter, priorityFilter]);
 
   return (
     <div className="container py-8">
@@ -250,15 +289,19 @@ const Dashboard = () => {
           </Card>
 
           {/* Complaints Grid */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {filteredGrievances.map((grievance) => (
-              <GrievanceCard 
-                key={grievance.id} 
-                grievance={grievance} 
-                showAiInsights 
-              />
-            ))}
-          </div>
+          {loading ? (
+            <p className="text-muted-foreground">Loading grievances...</p>
+          ) : (
+            <AdminGrievanceTable
+              grievances={grievances}
+              onView={setSelectedGrievance}
+            />
+          )}
+
+          <GrievanceDetailDrawer
+            grievance={selectedGrievance}
+            onClose={() => setSelectedGrievance(null)}
+          />
         </TabsContent>
 
         <TabsContent value="departments" className="space-y-6">
