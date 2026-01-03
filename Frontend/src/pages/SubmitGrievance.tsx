@@ -6,8 +6,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { CATEGORY_LABELS, CATEGORY_ICONS, CATEGORY_DEPARTMENTS, Category } from '@/types/grievance';
-import { Brain, Send, MapPin, FileText, Loader2, CheckCircle2 } from 'lucide-react';
+import { Brain, Send, MapPin, FileText, Loader2, CheckCircle2, ImagePlus, X, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 const SubmitGrievance = () => {
@@ -23,6 +24,9 @@ const SubmitGrievance = () => {
     phone: '',
     email: '',
   });
+  const [images, setImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [previewImage, setPreviewImage] = useState<{ url: string; index: number } | null>(null);
   const [aiSuggestion, setAiSuggestion] = useState<{
     category: Category;
     confidence: number;
@@ -76,6 +80,50 @@ const SubmitGrievance = () => {
       setFormData(prev => ({ ...prev, category: aiSuggestion.category }));
       toast.success('AI suggestion accepted!');
     }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newFiles = Array.from(files);
+    const totalImages = images.length + newFiles.length;
+
+    if (totalImages > 5) {
+      toast.error('You can upload a maximum of 5 images');
+      return;
+    }
+
+    // Validate file types and sizes
+    const validFiles: File[] = [];
+    for (const file of newFiles) {
+      if (!file.type.startsWith('image/')) {
+        toast.error(`${file.name} is not a valid image file`);
+        continue;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} exceeds 5MB limit`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    // Create previews for new images
+    const newPreviews: string[] = [];
+    validFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreviews(prev => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    setImages(prev => [...prev, ...validFiles]);
+  };
+
+  const removeImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -274,6 +322,66 @@ const SubmitGrievance = () => {
                   <span className="font-medium">{CATEGORY_DEPARTMENTS[formData.category as Category]}</span>
                 </div>
               )}
+
+              {/* Image Upload Section */}
+              <div className="space-y-3">
+                <Label>Attach Images (Optional)</Label>
+                <p className="text-sm text-muted-foreground">
+                  Upload up to 5 images to support your grievance (max 5MB each)
+                </p>
+
+                <div className="flex flex-wrap gap-3">
+                  {/* Image Previews */}
+                  {imagePreviews.map((preview, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={preview}
+                        alt={`Upload ${index + 1}`}
+                        className="h-24 w-24 object-cover rounded-lg border cursor-pointer"
+                        onClick={() => setPreviewImage({ url: preview, index })}
+                      />
+                      {/* Overlay with preview icon */}
+                      <div
+                        className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        onClick={() => setPreviewImage({ url: preview, index })}
+                      >
+                        <Eye className="h-6 w-6 text-white" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeImage(index);
+                        }}
+                        className="absolute -top-2 -right-2 h-6 w-6 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add Image Button */}
+                  {images.length < 5 && (
+                    <label className="h-24 w-24 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors">
+                      <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground mt-1">Add Image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleImageChange}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {images.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {images.length} image{images.length > 1 ? 's' : ''} selected
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -292,6 +400,66 @@ const SubmitGrievance = () => {
             )}
           </Button>
         </form>
+
+        {/* Image Preview Dialog */}
+        <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
+          <DialogContent className="max-w-4xl p-0 overflow-hidden">
+            <DialogTitle className="sr-only">Image Preview</DialogTitle>
+            {previewImage && (
+              <div className="relative">
+                <img
+                  src={previewImage.url}
+                  alt={`Preview ${previewImage.index + 1}`}
+                  className="w-full h-auto max-h-[80vh] object-contain"
+                />
+
+                {/* Navigation buttons */}
+                {imagePreviews.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newIndex = previewImage.index === 0
+                          ? imagePreviews.length - 1
+                          : previewImage.index - 1;
+                        setPreviewImage({ url: imagePreviews[newIndex], index: newIndex });
+                      }}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newIndex = previewImage.index === imagePreviews.length - 1
+                          ? 0
+                          : previewImage.index + 1;
+                        setPreviewImage({ url: imagePreviews[newIndex], index: newIndex });
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
+                    >
+                      <ChevronRight className="h-6 w-6" />
+                    </button>
+                  </>
+                )}
+
+                {/* Image counter */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                  {previewImage.index + 1} / {imagePreviews.length}
+                </div>
+
+                {/* Close button */}
+                <button
+                  type="button"
+                  onClick={() => setPreviewImage(null)}
+                  className="absolute top-2 right-2 h-8 w-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
