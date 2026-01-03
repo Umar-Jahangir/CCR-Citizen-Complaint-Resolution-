@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from ..database import SessionLocal
@@ -56,4 +56,29 @@ def submit_grievance(
         "ticket_id": str(db_grievance.id),
         "status": db_grievance.status,
         "created_at": db_grievance.created_at
+    }
+    
+@router.get("/track/{ticket_id}", response_model=schemas.GrievanceTrackResponse)
+def track_grievance(ticket_id: str, db: Session = Depends(get_db)):
+    grievance = crud.get_grievance_by_ticket_id(db, ticket_id)
+
+    if not grievance:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    return {
+        "ticketId": grievance.id,
+        "title": grievance.title,
+        "description": grievance.description_text,
+        "status": grievance.status.lower(),
+        "category": grievance.category,
+        "location": grievance.location,
+        "department": grievance.department,
+        "priority": grievance.priority.lower(),
+        "submittedAt": grievance.created_at,
+        "updatedAt": grievance.created_at,
+        "aiClassification": {
+            "confidence": 0.82,
+            "urgencyScore": grievance.urgency_score,
+            "sentiment": "neutral"
+        }
     }

@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { mockGrievances } from '@/data/mockGrievances';
 import { CATEGORY_LABELS, CATEGORY_ICONS, Grievance } from '@/types/grievance';
 import { Search, Clock, CheckCircle2, AlertCircle, Loader2, MapPin, Building2, User, Calendar, Brain } from 'lucide-react';
 import { format } from 'date-fns';
@@ -26,22 +25,26 @@ const TrackStatus = () => {
 
     setIsSearching(true);
     setNotFound(false);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const found = mockGrievances.find(g => 
-      g.ticketId.toLowerCase() === ticketId.toLowerCase()
-    );
-    
-    if (found) {
-      setSearchedTicket(found);
-    } else {
-      // For demo, show a random grievance
-      setSearchedTicket(mockGrievances[Math.floor(Math.random() * mockGrievances.length)]);
+
+    try {
+      const res = await fetch(
+        `http://127.0.0.1:8000/grievances/track/${ticketId}`
+      );
+
+      if (!res.ok) {
+        setNotFound(true);
+        setSearchedTicket(null);
+        return;
+      }
+
+      const data = await res.json();
+      setSearchedTicket(data);
+    } catch (err) {
+      console.error(err);
+      setNotFound(true);
+    } finally {
+      setIsSearching(false);
     }
-    
-    setIsSearching(false);
   };
 
   const getStatusIcon = (status: string) => {
