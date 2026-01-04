@@ -1,47 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { mockGrievances } from '@/data/mockGrievances';
-import { CATEGORY_LABELS, CATEGORY_ICONS, Grievance } from '@/types/grievance';
-import { Search, Clock, CheckCircle2, AlertCircle, Loader2, MapPin, Building2, User, Calendar, Brain } from 'lucide-react';
+import { getGrievance, Grievance } from '@/services/grievanceService';
+import { CATEGORY_LABELS, CATEGORY_ICONS, Category } from '@/types/grievance';
+import { Search, Clock, CheckCircle2, AlertCircle, Loader2, MapPin, Building2, Calendar, Brain, Trash2, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
 const TrackStatus = () => {
   const location = useLocation();
   const initialTicketId = (location.state as { ticketId?: string })?.ticketId || '';
-  
+
   const [ticketId, setTicketId] = useState(initialTicketId);
-  const [searchedTicket, setSearchedTicket] = useState<Grievance | null>(
-    initialTicketId ? mockGrievances.find(g => g.ticketId === initialTicketId) || mockGrievances[0] : null
-  );
+  const [searchedTicket, setSearchedTicket] = useState<Grievance | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [isDeleted, setIsDeleted] = useState(false);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!ticketId.trim()) return;
+  // Auto-search if ticket ID is provided from navigation
+  useEffect(() => {
+    if (initialTicketId) {
+      handleSearchById(initialTicketId);
+    }
+  }, [initialTicketId]);
+
+  const handleSearchById = async (id: string) => {
+    if (!id.trim()) return;
 
     setIsSearching(true);
     setNotFound(false);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const found = mockGrievances.find(g => 
-      g.ticketId.toLowerCase() === ticketId.toLowerCase()
-    );
-    
-    if (found) {
-      setSearchedTicket(found);
-    } else {
-      // For demo, show a random grievance
-      setSearchedTicket(mockGrievances[Math.floor(Math.random() * mockGrievances.length)]);
+    setIsDeleted(false);
+    setSearchedTicket(null);
+
+    try {
+      const result = await getGrievance(id.trim());
+      setSearchedTicket(result);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Not found';
+      if (errorMessage.includes('not found') || errorMessage.includes('Not found')) {
+        setIsDeleted(true);
+      } else {
+        setNotFound(true);
+      }
+    } finally {
+      setIsSearching(false);
     }
-    
-    setIsSearching(false);
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleSearchById(ticketId);
   };
 
   const getStatusIcon = (status: string) => {
@@ -70,14 +80,16 @@ const TrackStatus = () => {
     }
   };
 
-  const timeline = [
-    { status: 'Submitted', date: searchedTicket?.submittedAt, completed: true },
-    { status: 'AI Analysis Complete', date: searchedTicket?.submittedAt, completed: true },
-    { status: 'Assigned to Department', date: searchedTicket?.submittedAt, completed: true },
-    { status: 'Under Review', date: searchedTicket?.status !== 'pending' ? searchedTicket?.updatedAt : null, completed: searchedTicket?.status !== 'pending' },
-    { status: 'Action Taken', date: searchedTicket?.status === 'resolved' ? searchedTicket?.updatedAt : null, completed: searchedTicket?.status === 'resolved' },
-    { status: 'Resolved', date: searchedTicket?.status === 'resolved' ? searchedTicket?.updatedAt : null, completed: searchedTicket?.status === 'resolved' },
-  ];
+  const timeline = searchedTicket ? [
+    { status: 'Submitted', date: searchedTicket.created_at, completed: true },
+    { status: 'AI Analysis Complete', date: searchedTicket.created_at, completed: !!searchedTicket.sentiment },
+    { status: 'Assigned to Department', date: searchedTicket.created_at, completed: !!searchedTicket.department },
+    { status: 'Under Review', date: searchedTicket.status !== 'pending' ? searchedTicket.created_at : null, completed: searchedTicket.status !== 'pending' },
+    { status: 'Resolved', date: searchedTicket.status === 'resolved' ? searchedTicket.created_at : null, completed: searchedTicket.status === 'resolved' },
+  ] : [];
+
+  const categoryLabel = searchedTicket ? (CATEGORY_LABELS[searchedTicket.category as Category] || searchedTicket.category || 'Other') : '';
+  const categoryIcon = searchedTicket ? (CATEGORY_ICONS[searchedTicket.category as Category] || '📋') : '';
 
   return (
     <div className="container py-8 md:py-12">
@@ -96,7 +108,7 @@ const TrackStatus = () => {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Enter Ticket ID (e.g., GRV-2024-001)"
+                  placeholder="Enter Ticket ID (e.g., GRV-ABC123)"
                   className="pl-9"
                   value={ticketId}
                   onChange={(e) => setTicketId(e.target.value)}
@@ -113,6 +125,35 @@ const TrackStatus = () => {
           </CardContent>
         </Card>
 
+        {/* Deleted Complaint Message */}
+        {isDeleted && (
+          <Card className="text-center py-12 border-red-200 bg-red-50/50 dark:bg-red-950/20">
+            <CardContent>
+              <Trash2 className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h3 className="font-semibold text-lg mb-2 text-red-600">Complaint Has Been Deleted</h3>
+              <p className="text-muted-foreground">
+                The complaint with ticket ID <strong>{ticketId}</strong> has been deleted from the system.
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                If you believe this is an error, please contact the administration.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Not Found Message */}
+        {notFound && (
+          <Card className="text-center py-12">
+            <CardContent>
+              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="font-semibold text-lg mb-2">Ticket Not Found</h3>
+              <p className="text-muted-foreground">
+                We couldn't find a grievance with that ticket ID. Please check and try again.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Search Result */}
         {searchedTicket && (
           <div className="space-y-6 animate-fade-in">
@@ -121,7 +162,7 @@ const TrackStatus = () => {
               <CardHeader className="pb-4">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground font-medium">{searchedTicket.ticketId}</p>
+                    <p className="text-sm text-muted-foreground font-medium">{searchedTicket.ticket_id}</p>
                     <CardTitle className="text-xl">{searchedTicket.title}</CardTitle>
                   </div>
                   <Badge variant={getStatusVariant(searchedTicket.status)} className="capitalize text-sm">
@@ -132,14 +173,14 @@ const TrackStatus = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-muted-foreground">{searchedTicket.description}</p>
-                
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border">
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <span className="text-lg">{CATEGORY_ICONS[searchedTicket.category]}</span>
+                      <span className="text-lg">{categoryIcon}</span>
                       Category
                     </p>
-                    <p className="text-sm font-medium">{CATEGORY_LABELS[searchedTicket.category]}</p>
+                    <p className="text-sm font-medium">{categoryLabel}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -153,14 +194,14 @@ const TrackStatus = () => {
                       <Building2 className="h-3 w-3" />
                       Department
                     </p>
-                    <p className="text-sm font-medium">{searchedTicket.department.split(' - ')[0]}</p>
+                    <p className="text-sm font-medium">{searchedTicket.department?.split(' - ')[0] || 'Not assigned'}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
                       Submitted
                     </p>
-                    <p className="text-sm font-medium">{format(searchedTicket.submittedAt, 'MMM d, yyyy')}</p>
+                    <p className="text-sm font-medium">{format(new Date(searchedTicket.created_at), 'MMM d, yyyy')}</p>
                   </div>
                 </div>
 
@@ -174,8 +215,32 @@ const TrackStatus = () => {
               </CardContent>
             </Card>
 
+            {/* Uploaded Images */}
+            {searchedTicket.images && searchedTicket.images.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5" />
+                    Uploaded Images ({searchedTicket.images.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                    {searchedTicket.images.map((image, idx) => (
+                      <img
+                        key={idx}
+                        src={image}
+                        alt={`Evidence ${idx + 1}`}
+                        className="w-full h-24 object-cover rounded-lg border"
+                      />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* AI Analysis */}
-            {searchedTicket.aiClassification && (
+            {searchedTicket.sentiment && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -187,19 +252,19 @@ const TrackStatus = () => {
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center p-4 rounded-lg bg-muted/50">
                       <p className="text-2xl font-bold text-accent">
-                        {(searchedTicket.aiClassification.confidence * 100).toFixed(0)}%
+                        {((searchedTicket.sentiment_confidence || 0) * 100).toFixed(0)}%
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">Classification Confidence</p>
+                      <p className="text-xs text-muted-foreground mt-1">Analysis Confidence</p>
                     </div>
                     <div className="text-center p-4 rounded-lg bg-muted/50">
                       <p className="text-2xl font-bold text-accent">
-                        {searchedTicket.aiClassification.urgencyScore.toFixed(1)}/10
+                        {searchedTicket.urgency_score || 5}/10
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">Urgency Score</p>
                     </div>
                     <div className="text-center p-4 rounded-lg bg-muted/50">
                       <p className="text-2xl font-bold text-accent capitalize">
-                        {searchedTicket.aiClassification.sentiment}
+                        {searchedTicket.sentiment}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">Sentiment</p>
                     </div>
@@ -219,8 +284,8 @@ const TrackStatus = () => {
                     <div key={index} className="flex gap-4">
                       <div className="flex flex-col items-center">
                         <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                          item.completed 
-                            ? 'bg-status-resolved/10 text-status-resolved' 
+                          item.completed
+                            ? 'bg-status-resolved/10 text-status-resolved'
                             : 'bg-muted text-muted-foreground'
                         }`}>
                           {item.completed ? (
@@ -241,7 +306,7 @@ const TrackStatus = () => {
                         </p>
                         {item.date && (
                           <p className="text-xs text-muted-foreground">
-                            {format(item.date, 'MMM d, yyyy h:mm a')}
+                            {format(new Date(item.date), 'MMM d, yyyy h:mm a')}
                           </p>
                         )}
                       </div>
@@ -251,18 +316,6 @@ const TrackStatus = () => {
               </CardContent>
             </Card>
           </div>
-        )}
-
-        {notFound && (
-          <Card className="text-center py-12">
-            <CardContent>
-              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-semibold text-lg mb-2">Ticket Not Found</h3>
-              <p className="text-muted-foreground">
-                We couldn't find a grievance with that ticket ID. Please check and try again.
-              </p>
-            </CardContent>
-          </Card>
         )}
       </div>
     </div>

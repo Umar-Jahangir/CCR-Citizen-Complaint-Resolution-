@@ -1,40 +1,88 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import StatCard from '@/components/StatCard';
 import GrievanceCard from '@/components/GrievanceCard';
-import { mockGrievances, departmentStats, categoryDistribution, weeklyTrend } from '@/data/mockGrievances';
-import { 
-  FileText, 
-  Clock, 
-  CheckCircle2, 
+import { listGrievances, Grievance } from '@/services/grievanceService';
+import { departmentStats, categoryDistribution, weeklyTrend } from '@/data/mockGrievances';
+import { Category } from '@/types/grievance';
+import {
+  FileText,
+  Clock,
+  CheckCircle2,
   AlertTriangle,
   TrendingUp,
   Building2,
   Brain,
   Filter,
   BarChart3,
-  PieChart
+  PieChart,
+  Search,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 
 const Dashboard = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [grievances, setGrievances] = useState<Grievance[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const totalComplaints = mockGrievances.length;
-  const pendingComplaints = mockGrievances.filter(g => g.status === 'pending').length;
-  const inProgressComplaints = mockGrievances.filter(g => g.status === 'in-progress').length;
-  const resolvedComplaints = mockGrievances.filter(g => g.status === 'resolved').length;
+  const fetchGrievances = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listGrievances({
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+        search: searchQuery || undefined,
+      });
+      setGrievances(result.grievances);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch grievances');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const filteredGrievances = mockGrievances.filter(g => {
-    if (statusFilter !== 'all' && g.status !== statusFilter) return false;
-    if (priorityFilter !== 'all' && g.priority !== priorityFilter) return false;
-    return true;
-  });
+  useEffect(() => {
+    fetchGrievances();
+  }, [statusFilter, priorityFilter]);
+
+  const totalComplaints = grievances.length;
+  const pendingComplaints = grievances.filter(g => g.status === 'pending').length;
+  const inProgressComplaints = grievances.filter(g => g.status === 'in-progress').length;
+  const resolvedComplaints = grievances.filter(g => g.status === 'resolved').length;
+
+  // Transform API data to match GrievanceCard expected format
+  const transformedGrievances = grievances.map((g) => ({
+    id: g.id,
+    ticketId: g.ticket_id,
+    title: g.title,
+    description: g.description,
+    category: (g.category || 'other') as Category,
+    status: g.status as 'pending' | 'in-progress' | 'resolved',
+    priority: g.priority as 'low' | 'medium' | 'high',
+    department: g.department,
+    location: g.location,
+    submittedBy: g.citizen_name,
+    submittedAt: g.created_at,
+    images: g.images,
+    aiClassification: g.sentiment ? {
+      confidence: g.sentiment_confidence || 0,
+      suggestedCategory: (g.category || 'other') as Category,
+      urgencyScore: g.urgency_score || 5,
+      sentiment: g.sentiment as 'positive' | 'negative' | 'neutral',
+    } : undefined,
+  }));
 
   const COLORS = ['#059669', '#3b82f6', '#06b6d4', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'];
 
@@ -215,50 +263,114 @@ const Dashboard = () => {
         </TabsContent>
 
         <TabsContent value="complaints" className="space-y-6">
-          {/* Filters */}
+          {/* Search and Filters */}
           <Card>
             <CardContent className="pt-6">
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Filters:</span>
+              <div className="flex flex-col gap-4">
+                {/* Search Bar */}
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by ticket ID (e.g., GRV-ABC123), title, or description..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && fetchGrievances()}
+                      className="pl-9"
+                    />
+                  </div>
+                  <Button onClick={fetchGrievances} disabled={loading}>
+                    <Search className="h-4 w-4 mr-2" />
+                    Search
+                  </Button>
+                  <Button variant="outline" onClick={fetchGrievances} disabled={loading}>
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  </Button>
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="in-progress">In Progress</SelectItem>
-                    <SelectItem value="resolved">Resolved</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Priority</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* Filters */}
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Filters:</span>
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Priority</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
 
+          {/* Error State */}
+          {error && (
+            <Card className="border-destructive">
+              <CardContent className="flex flex-col items-center justify-center py-6">
+                <p className="text-destructive font-medium">Error loading complaints</p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+                <Button variant="outline" size="sm" onClick={fetchGrievances} className="mt-4">
+                  Try Again
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Loading State */}
+          {loading && !error && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
           {/* Complaints Grid */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {filteredGrievances.map((grievance) => (
-              <GrievanceCard 
-                key={grievance.id} 
-                grievance={grievance} 
-                showAiInsights 
-              />
-            ))}
-          </div>
+          {!loading && !error && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Showing {transformedGrievances.length} complaint{transformedGrievances.length !== 1 ? 's' : ''}
+              </p>
+              {transformedGrievances.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {transformedGrievances.map((grievance) => (
+                    <Link key={grievance.id} to={`/complaint/${grievance.id}`}>
+                      <GrievanceCard
+                        grievance={grievance}
+                        showAiInsights
+                      />
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <p className="text-lg font-medium">No complaints found</p>
+                    <p className="text-sm text-muted-foreground">
+                      {searchQuery || statusFilter !== 'all' || priorityFilter !== 'all'
+                        ? 'Try adjusting your search or filters'
+                        : 'No grievances have been submitted yet'}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="departments" className="space-y-6">
