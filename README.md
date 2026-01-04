@@ -45,7 +45,7 @@ Design and develop an AI-driven grievance redressal platform using Natural Langu
 |----------|------|
 | Live Demo | [https://gfgbq-team-beyond-the-browser-2.onrender.com](https://gfgbq-team-beyond-the-browser-2.onrender.com) |
 | Presentation (PPT) | [View on Canva](https://www.canva.com/design/DAG9WI6XsOc/3h-Oq7kejGoXDxEvdSvcFA/edit?utm_content=DAG9WI6XsOc&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton) |
-| Demo Video | *Coming Soon* |
+| Demo Video | [Watch on Google Drive](https://drive.google.com/file/d/1F6cQn7q_oGZZmfRYxA4NIN718XiY5bdj/view?usp=sharing) |
 
 ---
 
