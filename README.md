@@ -340,7 +340,10 @@ This project was developed as part of the **GFG ByteQuest - Vibe Coding Hackatho
 
 | Member | Role |
 |--------|------|
-| | |
+| Umar | Frontend Development |
+| Sidra | Backend Development |
+| Rushabh | AI Integration & Backend |
+| Shruti | Research |
 
 ---
 
