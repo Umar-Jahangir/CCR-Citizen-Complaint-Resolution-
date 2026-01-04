@@ -15,7 +15,14 @@ app = FastAPI(title="Grievance AI Analysis API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:8080",
+        "http://localhost:8081",
+        "http://localhost:8082",
+        "https://gfgbq-team-beyond-the-browser-2.onrender.com",
+        "https://ccr-frontend.onrender.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
