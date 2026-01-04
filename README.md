@@ -1,12 +1,57 @@
-# GrievanceAI - AI-Powered Grievance Redressal Platform
+# CCR (Citizen Complaint Resolution)
+### AI-Powered Grievance Redressal Platform
+
+> **GFG ByteQuest Hackathon - PS 12: AI for Grievance Redressal in Public Governance**
 
 An intelligent citizen grievance management system that leverages AI to analyze complaints, automatically route them to appropriate departments, and provide detailed technical assessments of reported issues.
 
 ![Home Page](docs/screenshots/home-page.png)
 
+## Problem Statement
+
+Public governance bodies receive thousands of citizen grievances every day, covering issues such as civic infrastructure, sanitation, public safety, utilities, healthcare, education, and administrative delays.
+
+**Current Challenges:**
+- Complaints are **unstructured** (free-text, voice notes, mixed languages)
+- **Manually reviewed** and routed, causing delays
+- **Slow resolution** leading to backlogs and citizen dissatisfaction
+- **No intelligent prioritization** - critical grievances get delayed
+- Authorities struggle to gain **actionable insights** from large volumes of data
+
+**The Need:**
+An AI-powered grievance redressal system that can intelligently understand, categorize, and prioritize citizen complaints to enable faster, fairer, and more transparent governance.
+
+## Objective
+
+Design and develop an AI-driven grievance redressal platform using Natural Language Processing (NLP) and intelligent automation that can:
+
+- Automatically **analyze and classify** citizen complaints
+- **Prioritize grievances** based on urgency, severity, and impact
+- **Route complaints** to the appropriate department or authority
+- Assist government bodies in resolving issues **efficiently and transparently**
+
+## Project Details
+
+| | |
+|---|---|
+| **Project Name** | CCR (Citizen Complaint Resolution) |
+| **Team Name** | Beyond the Browser |
+| **Hackathon** | GFG ByteQuest - Vibe Coding Hackathon |
+| **Problem Statement** | PS 12: AI for Grievance Redressal in Public Governance |
+
+### Links
+
+| Resource | Link |
+|----------|------|
+| Presentation (PPT) | [View on Canva](https://www.canva.com/design/DAG9WI6XsOc/3h-Oq7kejGoXDxEvdSvcFA/edit?utm_content=DAG9WI6XsOc&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton) |
+| Demo Video | *Coming Soon* |
+| Deployed Link | *Coming Soon* |
+
+---
+
 ## Overview
 
-GrievanceAI is a full-stack web application designed to streamline the process of submitting, tracking, and resolving civic complaints. The platform uses advanced AI models to:
+CCR (Citizen Complaint Resolution) is a full-stack web application designed to streamline the process of submitting, tracking, and resolving civic complaints. The platform uses advanced AI models to:
 
 - **Analyze sentiment** of grievance descriptions
 - **Extract technical details** from uploaded images
@@ -289,12 +334,15 @@ Complaints are automatically routed based on category:
 
 ## License
 
-This project was developed as part of the **GFG ByteQuest - Vibe Coding Hackathon**.
+This project was developed as part of the **GFG ByteQuest - Vibe Coding Hackathon** (PS 12: AI for Grievance Redressal in Public Governance).
 
-## Team
+## Team - Beyond The Browser
 
-**Team Beyond The Browser**
+| Member | Role |
+|--------|------|
+| | |
 
 ---
 
-Built with AI-powered intelligence for smarter civic governance.
+**CCR - Citizen Complaint Resolution**
+*Built with AI-powered intelligence for smarter civic governance.*
