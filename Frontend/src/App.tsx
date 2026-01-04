@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import SubmitGrievance from "./pages/SubmitGrievance";
 import TrackStatus from "./pages/TrackStatus";
 import Dashboard from "./pages/Dashboard";
+import ComplaintDetailPage from "./pages/admin/ComplaintDetailPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
               <Route path="/submit" element={<SubmitGrievance />} />
               <Route path="/track" element={<TrackStatus />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/complaint/:id" element={<ComplaintDetailPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>

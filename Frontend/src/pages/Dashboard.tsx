@@ -1,94 +1,90 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import StatCard from '@/components/StatCard';
 import GrievanceCard from '@/components/GrievanceCard';
-import { 
-  FileText, 
-  Clock, 
-  CheckCircle2, 
+import { listGrievances, Grievance } from '@/services/grievanceService';
+import { departmentStats, categoryDistribution, weeklyTrend } from '@/data/mockGrievances';
+import { Category } from '@/types/grievance';
+import {
+  FileText,
+  Clock,
+  CheckCircle2,
   AlertTriangle,
   TrendingUp,
   Building2,
   Brain,
   Filter,
   BarChart3,
-  PieChart
+  PieChart,
+  Search,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 
-import { useEffect } from "react";
-import {
-  fetchAdminStats,
-  fetchAdminGrievances,
-  fetchAdminAnalytics
-} from "@/api/admin";
-
-import AdminGrievanceTable from "@/components/AdminGrievanceTable";
-import GrievanceDetailDrawer from "@/components/GrievanceDetailDrawer";
-import { AdminGrievance } from "@/types/adminGrievance";
-import { AdminAnalytics } from "@/types/adminAnalytics";
-
 const Dashboard = () => {
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    in_progress: 0,
-    resolved: 0,
-    high_priority: 0,
-     escalated: 0,
-  });
-
-  const [grievances, setGrievances] = useState<AdminGrievance[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [grievances, setGrievances] = useState<Grievance[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const totalComplaints = stats.total;
-  const pendingComplaints = stats.pending;
-  const inProgressComplaints = stats.in_progress;
-  const resolvedComplaints = stats.resolved;
-
-  const [analytics, setAnalytics] = useState<AdminAnalytics>({
-    weeklyTrend: [],
-    categoryDistribution: [],
-    departmentStats: [],
-  });
-
-
-  const COLORS = ['#059669', '#3b82f6', '#06b6d4', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'];
-  const [selectedGrievance, setSelectedGrievance] = useState<AdminGrievance | null>(null);
+  const fetchGrievances = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listGrievances({
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+        search: searchQuery || undefined,
+      });
+      setGrievances(result.grievances);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch grievances');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadDashboard() {
-      try {
-        setLoading(true);
-
-        const [
-          statsData,
-          grievanceData,
-          analyticsData
-        ] = await Promise.all([
-          fetchAdminStats(),
-          fetchAdminGrievances(statusFilter, priorityFilter),
-          fetchAdminAnalytics(),
-        ]);
-
-        setStats(statsData);
-        setGrievances(grievanceData);
-        setAnalytics(analyticsData);
-
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadDashboard();
+    fetchGrievances();
   }, [statusFilter, priorityFilter]);
+
+  const totalComplaints = grievances.length;
+  const pendingComplaints = grievances.filter(g => g.status === 'pending').length;
+  const inProgressComplaints = grievances.filter(g => g.status === 'in-progress').length;
+  const resolvedComplaints = grievances.filter(g => g.status === 'resolved').length;
+
+  // Transform API data to match GrievanceCard expected format
+  const transformedGrievances = grievances.map((g) => ({
+    id: g.id,
+    ticketId: g.ticket_id,
+    title: g.title,
+    description: g.description,
+    category: (g.category || 'other') as Category,
+    status: g.status as 'pending' | 'in-progress' | 'resolved',
+    priority: g.priority as 'low' | 'medium' | 'high',
+    department: g.department,
+    location: g.location,
+    submittedBy: g.citizen_name,
+    submittedAt: g.created_at,
+    images: g.images,
+    aiClassification: g.sentiment ? {
+      confidence: g.sentiment_confidence || 0,
+      suggestedCategory: (g.category || 'other') as Category,
+      urgencyScore: g.urgency_score || 5,
+      sentiment: g.sentiment as 'positive' | 'negative' | 'neutral',
+    } : undefined,
+  }));
+
+  const COLORS = ['#059669', '#3b82f6', '#06b6d4', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'];
 
   return (
     <div className="container py-8">
@@ -137,13 +133,6 @@ const Dashboard = () => {
           variant="success"
           trend={{ value: 8, isPositive: true }}
         />
-        <StatCard
-          title="Escalations"
-          value={stats.escalated}
-          description="Overdue complaints"
-          icon={AlertTriangle}
-          variant="warning"
-        />
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
@@ -165,7 +154,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={analytics.weeklyTrend}>
+                  <LineChart data={weeklyTrend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -208,7 +197,7 @@ const Dashboard = () => {
                 <ResponsiveContainer width="100%" height={300}>
                   <RechartsPie>
                     <Pie
-                      data={analytics.categoryDistribution}
+                      data={categoryDistribution}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -219,8 +208,8 @@ const Dashboard = () => {
                       label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
                       labelLine={false}
                     >
-                      {analytics.categoryDistribution.map((entry, index) => (
-                        <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                      {categoryDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -246,7 +235,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={analytics.departmentStats} layout="vertical">
+                <BarChart data={departmentStats} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                   <YAxis 
@@ -274,59 +263,119 @@ const Dashboard = () => {
         </TabsContent>
 
         <TabsContent value="complaints" className="space-y-6">
-          {/* Filters */}
+          {/* Search and Filters */}
           <Card>
             <CardContent className="pt-6">
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Filters:</span>
+              <div className="flex flex-col gap-4">
+                {/* Search Bar */}
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by ticket ID (e.g., GRV-ABC123), title, or description..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && fetchGrievances()}
+                      className="pl-9"
+                    />
+                  </div>
+                  <Button onClick={fetchGrievances} disabled={loading}>
+                    <Search className="h-4 w-4 mr-2" />
+                    Search
+                  </Button>
+                  <Button variant="outline" onClick={fetchGrievances} disabled={loading}>
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  </Button>
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="in-progress">In Progress</SelectItem>
-                    <SelectItem value="resolved">Resolved</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Priority</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* Filters */}
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Filters:</span>
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Priority</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Complaints Grid */}
-          {loading ? (
-            <p className="text-muted-foreground">Loading grievances...</p>
-          ) : (
-            <AdminGrievanceTable
-              grievances={grievances}
-              onView={setSelectedGrievance}
-            />
+          {/* Error State */}
+          {error && (
+            <Card className="border-destructive">
+              <CardContent className="flex flex-col items-center justify-center py-6">
+                <p className="text-destructive font-medium">Error loading complaints</p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+                <Button variant="outline" size="sm" onClick={fetchGrievances} className="mt-4">
+                  Try Again
+                </Button>
+              </CardContent>
+            </Card>
           )}
 
-          <GrievanceDetailDrawer
-            grievance={selectedGrievance}
-            onClose={() => setSelectedGrievance(null)}
-          />
+          {/* Loading State */}
+          {loading && !error && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {/* Complaints Grid */}
+          {!loading && !error && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Showing {transformedGrievances.length} complaint{transformedGrievances.length !== 1 ? 's' : ''}
+              </p>
+              {transformedGrievances.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {transformedGrievances.map((grievance) => (
+                    <Link key={grievance.id} to={`/complaint/${grievance.id}`}>
+                      <GrievanceCard
+                        grievance={grievance}
+                        showAiInsights
+                      />
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <p className="text-lg font-medium">No complaints found</p>
+                    <p className="text-sm text-muted-foreground">
+                      {searchQuery || statusFilter !== 'all' || priorityFilter !== 'all'
+                        ? 'Try adjusting your search or filters'
+                        : 'No grievances have been submitted yet'}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="departments" className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {analytics.departmentStats.map((dept, index) => (
+            {departmentStats.map((dept, index) => (
               <Card key={index} className="hover:shadow-card transition-shadow">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center gap-2">

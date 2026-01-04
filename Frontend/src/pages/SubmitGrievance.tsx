@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { CATEGORY_LABELS, CATEGORY_ICONS, CATEGORY_DEPARTMENTS, Category } from '@/types/grievance';
-import { Brain, Send, MapPin, FileText, Loader2, CheckCircle2, ImagePlus, X, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Brain, Send, Loader2, CheckCircle2, ImagePlus, X, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { analyzeGrievance } from '@/services/aiService';
+import { createGrievance } from '@/services/grievanceService';
+import LocationPicker from '@/components/LocationPicker';
 
 const SubmitGrievance = () => {
   const navigate = useNavigate();
@@ -31,46 +34,73 @@ const SubmitGrievance = () => {
     category: Category;
     confidence: number;
     urgency: number;
+    sentiment: 'positive' | 'negative' | 'neutral';
   } | null>(null);
+  const analysisTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleDescriptionChange = async (description: string) => {
+  const inferCategoryFromText = (text: string): Category => {
+    const keywords = text.toLowerCase();
+    if (keywords.includes('garbage') || keywords.includes('waste') || keywords.includes('smell') || keywords.includes('trash')) {
+      return 'sanitation';
+    } else if (keywords.includes('water') || keywords.includes('pipe') || keywords.includes('supply') || keywords.includes('tap')) {
+      return 'water-supply';
+    } else if (keywords.includes('electricity') || keywords.includes('light') || keywords.includes('power') || keywords.includes('outage')) {
+      return 'electricity';
+    } else if (keywords.includes('road') || keywords.includes('pothole') || keywords.includes('accident') || keywords.includes('street')) {
+      return 'roads';
+    } else if (keywords.includes('safety') || keywords.includes('police') || keywords.includes('crime') || keywords.includes('theft')) {
+      return 'public-safety';
+    } else if (keywords.includes('hospital') || keywords.includes('health') || keywords.includes('doctor') || keywords.includes('medical')) {
+      return 'healthcare';
+    } else if (keywords.includes('school') || keywords.includes('education') || keywords.includes('teacher')) {
+      return 'education';
+    } else if (keywords.includes('house') || keywords.includes('housing') || keywords.includes('building') || keywords.includes('rent')) {
+      return 'housing';
+    }
+    return 'other';
+  };
+
+  const runAIAnalysis = useCallback(async () => {
+    if (formData.description.length < 50) return;
+
+    setIsAnalyzing(true);
+    try {
+      const result = await analyzeGrievance(formData.description, imagePreviews.length > 0 ? imagePreviews : undefined);
+
+      const suggestedCategory = inferCategoryFromText(formData.description);
+
+      setAiSuggestion({
+        category: suggestedCategory,
+        confidence: result.text_analysis.confidence || 0.75,
+        urgency: result.overall_urgency,
+        sentiment: result.text_analysis.sentiment,
+      });
+    } catch (error) {
+      console.error('AI analysis failed:', error);
+      toast.error('AI analysis failed. Using fallback analysis.');
+
+      const suggestedCategory = inferCategoryFromText(formData.description);
+      setAiSuggestion({
+        category: suggestedCategory,
+        confidence: 0.6,
+        urgency: 5,
+        sentiment: 'neutral',
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [formData.description, imagePreviews]);
+
+  const handleDescriptionChange = (description: string) => {
     setFormData(prev => ({ ...prev, description }));
-    
-    // Simulate AI analysis after typing stops
+
+    if (analysisTimeoutRef.current) {
+      clearTimeout(analysisTimeoutRef.current);
+    }
+
     if (description.length > 50) {
-      setIsAnalyzing(true);
-      // Simulate API call
-      setTimeout(() => {
-        const keywords = description.toLowerCase();
-        let suggestedCategory: Category = 'other';
-        let urgency = 5;
-
-        if (keywords.includes('garbage') || keywords.includes('waste') || keywords.includes('smell')) {
-          suggestedCategory = 'sanitation';
-          urgency = keywords.includes('urgent') || keywords.includes('health') ? 8 : 6;
-        } else if (keywords.includes('water') || keywords.includes('pipe') || keywords.includes('supply')) {
-          suggestedCategory = 'water-supply';
-          urgency = keywords.includes('no water') ? 9 : 6;
-        } else if (keywords.includes('electricity') || keywords.includes('light') || keywords.includes('power')) {
-          suggestedCategory = 'electricity';
-          urgency = 6;
-        } else if (keywords.includes('road') || keywords.includes('pothole') || keywords.includes('accident')) {
-          suggestedCategory = 'roads';
-          urgency = keywords.includes('accident') ? 9 : 7;
-        } else if (keywords.includes('safety') || keywords.includes('police') || keywords.includes('crime')) {
-          suggestedCategory = 'public-safety';
-          urgency = 7;
-        } else if (keywords.includes('hospital') || keywords.includes('health') || keywords.includes('doctor')) {
-          suggestedCategory = 'healthcare';
-          urgency = 7;
-        }
-
-        setAiSuggestion({
-          category: suggestedCategory,
-          confidence: 0.75 + Math.random() * 0.2,
-          urgency,
-        });
-        setIsAnalyzing(false);
+      analysisTimeoutRef.current = setTimeout(() => {
+        runAIAnalysis();
       }, 1500);
     }
   };
@@ -128,6 +158,12 @@ const SubmitGrievance = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!formData.name || !formData.phone) {
+      toast.error('Please fill in your name and phone number');
+      return;
+    }
+
     if (!formData.title || !formData.description || !formData.location) {
       toast.error('Please fill in all required fields');
       return;
@@ -136,56 +172,28 @@ const SubmitGrievance = () => {
     setIsSubmitting(true);
 
     try {
-      const form = new FormData();
-
-      // Citizen
-      form.append('full_name', formData.name);
-      form.append('phone_number', formData.phone);
-      if (formData.email) form.append('email', formData.email);
-
-      // Grievance
-      form.append('title', formData.title);
-      form.append('description_text', formData.description);
-      form.append('category', formData.category);
-      form.append('location', formData.location);
-
-      // AI derived / default values
-      const urgency = aiSuggestion?.urgency ?? 5;
-      form.append('urgency_score', String(urgency));
-      form.append('priority', urgency >= 8 ? 'High' : urgency >= 5 ? 'Medium' : 'Low');
-      form.append('department', CATEGORY_DEPARTMENTS[formData.category as Category]);
-
-      // Images
-      images.forEach(img => {
-        form.append('images', img);
+      const result = await createGrievance({
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email || undefined,
+        title: formData.title,
+        description: formData.description,
+        category: formData.category || undefined,
+        location: formData.location,
+        images: imagePreviews.length > 0 ? imagePreviews : undefined,
       });
-
-      const res = await fetch('http://127.0.0.1:8000/grievances/submit', {
-        method: 'POST',
-        body: form,
-      });
-
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err);
-      }
-
-      const data = await res.json();
 
       toast.success(
         <div className="space-y-1">
           <p className="font-semibold">Grievance Submitted Successfully!</p>
-          <p className="text-sm">
-            Your ticket ID: <span className="font-mono font-bold">{data.ticket_id}</span>
-          </p>
+          <p className="text-sm">Your ticket ID: <span className="font-mono font-bold">{result.ticket_id}</span></p>
         </div>
       );
 
-      navigate('/track', { state: { ticketId: data.ticket_id } });
-
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to submit grievance. Please try again.');
+      navigate('/track', { state: { ticketId: result.ticket_id } });
+    } catch (error) {
+      console.error('Failed to submit grievance:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to submit grievance. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -279,7 +287,7 @@ const SubmitGrievance = () => {
                 )}
               </div>
 
-              {/* AI Suggestion */}
+              {/* AI Category Suggestion - Simple version for users */}
               {aiSuggestion && !isAnalyzing && (
                 <div className="p-4 rounded-lg bg-accent/10 border border-accent/20 animate-fade-in">
                   <div className="flex items-start gap-3">
@@ -287,26 +295,20 @@ const SubmitGrievance = () => {
                       <Brain className="h-5 w-5 text-accent-foreground" />
                     </div>
                     <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-sm">AI Suggestion</p>
-                        <span className="text-xs text-muted-foreground">
-                          {(aiSuggestion.confidence * 100).toFixed(0)}% confidence
-                        </span>
-                      </div>
+                      <p className="font-medium text-sm">AI Suggestion</p>
                       <p className="text-sm text-muted-foreground">
                         Based on your description, this appears to be a{' '}
                         <span className="font-semibold text-foreground">
                           {CATEGORY_ICONS[aiSuggestion.category]} {CATEGORY_LABELS[aiSuggestion.category]}
                         </span>{' '}
-                        issue with urgency level{' '}
-                        <span className="font-semibold text-foreground">{aiSuggestion.urgency}/10</span>.
+                        issue.
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Will be routed to: {CATEGORY_DEPARTMENTS[aiSuggestion.category]}
                       </p>
-                      <Button 
-                        type="button" 
-                        size="sm" 
+                      <Button
+                        type="button"
+                        size="sm"
                         variant="secondary"
                         onClick={acceptAiSuggestion}
                         className="mt-2"
@@ -319,41 +321,30 @@ const SubmitGrievance = () => {
                 </div>
               )}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={formData.category}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, category: value as Category }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
-                        <SelectItem key={key} value={key}>
-                          {CATEGORY_ICONS[key as Category]} {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="location">Location *</Label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="location"
-                      className="pl-9"
-                      placeholder="Enter location/address"
-                      value={formData.location}
-                      onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                      required
-                    />
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, category: value as Category }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category (optional - AI will suggest)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {CATEGORY_ICONS[key as Category]} {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
+              {/* Location Picker with Map */}
+              <LocationPicker
+                value={formData.location}
+                onChange={(location) => setFormData(prev => ({ ...prev, location }))}
+              />
 
               {formData.category && (
                 <div className="p-3 rounded-lg bg-muted/50 text-sm">
