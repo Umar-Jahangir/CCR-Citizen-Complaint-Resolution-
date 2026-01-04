@@ -128,28 +128,67 @@ const SubmitGrievance = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!formData.title || !formData.description || !formData.location) {
       toast.error('Please fill in all required fields');
       return;
     }
 
     setIsSubmitting(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const ticketId = `GRV-2024-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
-    
-    toast.success(
-      <div className="space-y-1">
-        <p className="font-semibold">Grievance Submitted Successfully!</p>
-        <p className="text-sm">Your ticket ID: <span className="font-mono font-bold">{ticketId}</span></p>
-      </div>
-    );
-    
-    setIsSubmitting(false);
-    navigate('/track', { state: { ticketId } });
+
+    try {
+      const form = new FormData();
+
+      // Citizen
+      form.append('full_name', formData.name);
+      form.append('phone_number', formData.phone);
+      if (formData.email) form.append('email', formData.email);
+
+      // Grievance
+      form.append('title', formData.title);
+      form.append('description_text', formData.description);
+      form.append('category', formData.category);
+      form.append('location', formData.location);
+
+      // AI derived / default values
+      const urgency = aiSuggestion?.urgency ?? 5;
+      form.append('urgency_score', String(urgency));
+      form.append('priority', urgency >= 8 ? 'High' : urgency >= 5 ? 'Medium' : 'Low');
+      form.append('department', CATEGORY_DEPARTMENTS[formData.category as Category]);
+
+      // Images
+      images.forEach(img => {
+        form.append('images', img);
+      });
+
+      const res = await fetch('http://127.0.0.1:8000/grievances/submit', {
+        method: 'POST',
+        body: form,
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+
+      const data = await res.json();
+
+      toast.success(
+        <div className="space-y-1">
+          <p className="font-semibold">Grievance Submitted Successfully!</p>
+          <p className="text-sm">
+            Your ticket ID: <span className="font-mono font-bold">{data.ticket_id}</span>
+          </p>
+        </div>
+      );
+
+      navigate('/track', { state: { ticketId: data.ticket_id } });
+
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to submit grievance. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

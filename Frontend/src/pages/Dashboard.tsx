@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import StatCard from '@/components/StatCard';
 import GrievanceCard from '@/components/GrievanceCard';
-import { mockGrievances, departmentStats, categoryDistribution, weeklyTrend } from '@/data/mockGrievances';
 import { 
   FileText, 
   Clock, 
@@ -21,22 +20,75 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 
+import { useEffect } from "react";
+import {
+  fetchAdminStats,
+  fetchAdminGrievances,
+  fetchAdminAnalytics
+} from "@/api/admin";
+
+import AdminGrievanceTable from "@/components/AdminGrievanceTable";
+import GrievanceDetailDrawer from "@/components/GrievanceDetailDrawer";
+import { AdminGrievance } from "@/types/adminGrievance";
+import { AdminAnalytics } from "@/types/adminAnalytics";
+
 const Dashboard = () => {
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    in_progress: 0,
+    resolved: 0,
+    high_priority: 0,
+     escalated: 0,
+  });
+
+  const [grievances, setGrievances] = useState<AdminGrievance[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
 
-  const totalComplaints = mockGrievances.length;
-  const pendingComplaints = mockGrievances.filter(g => g.status === 'pending').length;
-  const inProgressComplaints = mockGrievances.filter(g => g.status === 'in-progress').length;
-  const resolvedComplaints = mockGrievances.filter(g => g.status === 'resolved').length;
+  const totalComplaints = stats.total;
+  const pendingComplaints = stats.pending;
+  const inProgressComplaints = stats.in_progress;
+  const resolvedComplaints = stats.resolved;
 
-  const filteredGrievances = mockGrievances.filter(g => {
-    if (statusFilter !== 'all' && g.status !== statusFilter) return false;
-    if (priorityFilter !== 'all' && g.priority !== priorityFilter) return false;
-    return true;
+  const [analytics, setAnalytics] = useState<AdminAnalytics>({
+    weeklyTrend: [],
+    categoryDistribution: [],
+    departmentStats: [],
   });
 
+
   const COLORS = ['#059669', '#3b82f6', '#06b6d4', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'];
+  const [selectedGrievance, setSelectedGrievance] = useState<AdminGrievance | null>(null);
+
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        setLoading(true);
+
+        const [
+          statsData,
+          grievanceData,
+          analyticsData
+        ] = await Promise.all([
+          fetchAdminStats(),
+          fetchAdminGrievances(statusFilter, priorityFilter),
+          fetchAdminAnalytics(),
+        ]);
+
+        setStats(statsData);
+        setGrievances(grievanceData);
+        setAnalytics(analyticsData);
+
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDashboard();
+  }, [statusFilter, priorityFilter]);
 
   return (
     <div className="container py-8">
@@ -85,6 +137,13 @@ const Dashboard = () => {
           variant="success"
           trend={{ value: 8, isPositive: true }}
         />
+        <StatCard
+          title="Escalations"
+          value={stats.escalated}
+          description="Overdue complaints"
+          icon={AlertTriangle}
+          variant="warning"
+        />
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
@@ -106,7 +165,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={weeklyTrend}>
+                  <LineChart data={analytics.weeklyTrend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -149,7 +208,7 @@ const Dashboard = () => {
                 <ResponsiveContainer width="100%" height={300}>
                   <RechartsPie>
                     <Pie
-                      data={categoryDistribution}
+                      data={analytics.categoryDistribution}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -160,8 +219,8 @@ const Dashboard = () => {
                       label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
                       labelLine={false}
                     >
-                      {categoryDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      {analytics.categoryDistribution.map((entry, index) => (
+                        <Cell key={index} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -187,7 +246,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={departmentStats} layout="vertical">
+                <BarChart data={analytics.departmentStats} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                   <YAxis 
@@ -250,20 +309,24 @@ const Dashboard = () => {
           </Card>
 
           {/* Complaints Grid */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {filteredGrievances.map((grievance) => (
-              <GrievanceCard 
-                key={grievance.id} 
-                grievance={grievance} 
-                showAiInsights 
-              />
-            ))}
-          </div>
+          {loading ? (
+            <p className="text-muted-foreground">Loading grievances...</p>
+          ) : (
+            <AdminGrievanceTable
+              grievances={grievances}
+              onView={setSelectedGrievance}
+            />
+          )}
+
+          <GrievanceDetailDrawer
+            grievance={selectedGrievance}
+            onClose={() => setSelectedGrievance(null)}
+          />
         </TabsContent>
 
         <TabsContent value="departments" className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {departmentStats.map((dept, index) => (
+            {analytics.departmentStats.map((dept, index) => (
               <Card key={index} className="hover:shadow-card transition-shadow">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center gap-2">

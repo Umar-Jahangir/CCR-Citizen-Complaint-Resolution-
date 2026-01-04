@@ -175,8 +175,8 @@ const Index = () => {
                 className="relative animate-fade-in"
                 style={{ animationDelay: `${0.1 * index}s` }}
               >
-                <div className="text-6xl font-bold text-primary/10 mb-4">{step.step}</div>
-                <h3 className="font-semibold text-lg mb-2">{step.title}</h3>
+                <div className="text-6xl font-bold text-gradient mb-4">{step.step}</div>
+                <h3 className="font-bold text-lg mb-2">{step.title}</h3>
                 <p className="text-sm text-muted-foreground">{step.description}</p>
                 {index < processSteps.length - 1 && (
                   <ArrowRight className="hidden lg:block absolute top-8 -right-4 h-6 w-6 text-primary/30" />
@@ -207,7 +207,7 @@ const Index = () => {
                   </Button>
                 </Link>
                 <Link to="/dashboard">
-                  <Button size="xl" variant="outline" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
+                  <Button size="xl" variant="outline" className="bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/0">
                     View Dashboard
                   </Button>
                 </Link>
