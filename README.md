@@ -1,7 +1,7 @@
 # CCR (Citizen Complaint Resolution)
 ### AI-Powered Grievance Redressal Platform
 
-> **GFG ByteQuest Hackathon - PS 12: AI for Grievance Redressal in Public Governance**
+> **AI for Grievance Redressal in Public Governance**
 
 An intelligent citizen grievance management system that leverages AI to analyze complaints, automatically route them to appropriate departments, and provide detailed technical assessments of reported issues.
 
@@ -36,8 +36,7 @@ Design and develop an AI-driven grievance redressal platform using Natural Langu
 |---|---|
 | **Project Name** | CCR (Citizen Complaint Resolution) |
 | **Team Name** | Beyond the Browser |
-| **Hackathon** | GFG ByteQuest - Vibe Coding Hackathon |
-| **Problem Statement** | PS 12: AI for Grievance Redressal in Public Governance |
+| **Problem Statement** | AI for Grievance Redressal in Public Governance |
 
 ### Links
 
@@ -167,7 +166,7 @@ Keyword-based urgency detection (1-10 scale):
 ## Project Structure
 
 ```
-GFGBQ-Team-beyond-the-browser/
+CCR-Citizen-Complaint-Resolution/
 ├── Frontend/
 │   ├── src/
 │   │   ├── components/       # Reusable UI components
